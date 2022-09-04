@@ -16,7 +16,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Say hello"
+          name: Build Back-end
           command: cd backend
                   npm install
                   npm run build
