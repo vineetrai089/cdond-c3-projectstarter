@@ -5,21 +5,21 @@ commands:
     parameters:
       workflowID:
         type: string
-        default: "${CIRCLE_WORKFLOW_ID}"
+        default: "${CIRCLE_WORKFLOW_ID:0:7}"
       # Add parameter here   
     steps:
       - run:
-          name: Destroy backend environments ${CIRCLE_WORKFLOW_ID}
+          name: Destroy backend environments ${CIRCLE_WORKFLOW_ID:0:7}
           command: |
             echo "Deleting the stack"
             echo << parameters.workflowID >> 
             aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.workflowID >> 
           when: on_fail
       - run:
-          name: Destroy frontend environments ${CIRCLE_WORKFLOW_ID}
+          name: Destroy frontend environments ${CIRCLE_WORKFLOW_ID:0:7}
           command: |
             echo "Deleting the front end"
-            aws s3 rm s3://udapeople-${CIRCLE_WORKFLOW_ID} --recursive
+            aws s3 rm s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
             aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.workflowID >> 
           when: on_fail 
 jobs:
@@ -113,18 +113,18 @@ jobs:
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
-              --tags project=udapeople-backend-${CIRCLE_WORKFLOW_ID} \
-              --stack-name prod-${CIRCLE_WORKFLOW_ID} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"  
+              --tags project=udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --stack-name pudapeople-backend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
               #exit 1
       - run:
           name: Ensure front-end infrastructure exist
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/frontend.yml \
-              --tags project=udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
-              --stack-name prod-${CIRCLE_WORKFLOW_ID} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
+              --tags project=udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"
               #exit 1
       - run:
           name: Add back-end ip to ansible inventory
@@ -132,7 +132,7 @@ jobs:
             echo "[web]" > .circleci/ansible/inventory.txt
             INSTSNCE_IP=$(aws ec2 describe-instances \
             --query "Reservations[*].Instances[*].PublicIpAdress" \
-            --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID} \
+            --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7} \
             --output text)
 
             echo ${INSTSNCE_IP} >> ./.circleci/ansible/inventory.txt
@@ -144,7 +144,7 @@ jobs:
           root: ~/
           paths:
             - project/.circleci/ansible/inventory.txt
-      # Here's where you will add some code to rollback on failure      
+      # Here's where you will add some code to rollback on failure  
 
 workflows:
   default:
