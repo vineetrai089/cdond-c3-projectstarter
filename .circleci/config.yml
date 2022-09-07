@@ -272,24 +272,69 @@ jobs:
 
       # attach workspace
       - attach_workspace:
-          at: ./.circleci/ansible
+            at: ~/
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible
-            apk add --update curl
-            pip3 install awscli
+            apk add --update tar gzip ansible nodejs npm curl zip
+            pip install awscli
+            npm install
+            
+      - run:
+          name: create .env files
+          command: |
+            echo NODE_ENV=production > "backend/.env"
+            echo VERSION=1 >> "backend/.env"
+            echo ENVIROMENT=development >> "backend/.env"
+            echo TYPEORM_CONNECTION=postgres >> "backend/.env"
+            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> "backend/.env"
+            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> "backend/.env"
+            echo TYPEORM_ENTITIES=./src/modules/**/*.entity.ts >> "backend/.env"
+            echo TYPEORM_HOST=$TYPEORM_HOST >> "backend/.env"
+            echo TYPEORM_PORT=$TYPEORM_PORT >> "backend/.env"
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> "backend/.env"
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> "backend/.env"
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/.env"
+      - run:
+          name: install node modules
+          command: |
+            cd /root/project/backend
+            npm install
+      - run:
+          name: zip backend files
+          command: |
+            pwd
+            cd backend
+            npm i
+            npm run build
+            cd ..
+            pwd
+            tar czf backend.tar.gz backend
+            ls -l 
+            cd .circleci/ansible/roles/deploy
+            mkdir files
+            #sudo chmod 777 files
+            cd /root/project/
+            cp backend.tar.gz .circleci/ansible/roles/deploy/files/
+            ls -l
+            #mv backend.tar.gz /home/ubuntu
+            #cd /home/ubuntu
+            #ls -l
+            #cp backend.tar.gz /home/ubuntu
+            #cp backend.tar.gz ~/
       - run:
           name: Deploy backend
           command: |
-            # cd backend
-            # npm install
-            # npm run build
-            # cd ..
-            tar -C backend -czvf artifact.tar.gz .
-            mkdir -p ~/project/.circleci/ansible/roles/deploy/files 
-            cp -p artifact.tar.gz .circleci/ansible/roles/deploy/files
+            # your code here
             cd .circleci/ansible
+            backendip=$(aws ec2 describe-instances \
+              --query "Reservations[*].Instances[*].PublicIpAddress" \
+              --filters "Name=tag:project,Values=Udacity-Project3" \
+              --output=text)
+            ls -l -a
+            #echo $backendip >> .circleci/ansible/inventory.txt
+            echo $backendip >> inventory.txt
+            echo "Contents  of the inventory.txt file is -------"
             cat inventory.txt
             ansible-playbook -i inventory.txt deploy-backend.yml
       - destroy-environment: 
@@ -315,6 +360,19 @@ jobs:
             sudo ./aws/install
             curl -fsSL https://deb.nodesource.com/setup_13.x | sudo -E bash -
             sudo apt install -y nodejs
+
+      - run:
+          name: Backend smoke test.
+          command: |
+            export BACKEND_URL=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].PublicIpAddress' --filters "Name=tag:project,Values=Udacity-Project3" --output text)
+            echo http://${BACKEND_URL}:3030/api/status
+            if 
+            curl -s http://${BACKEND_URL}:3030/api/status | grep "ok"
+            then
+              exit 0
+            else
+              exit 1
+            fi  
   
       - run:
           name: Frontend smoke test.
