@@ -267,53 +267,31 @@ jobs:
 
       # attach workspace
       - attach_workspace:
-            at: ~/
+          at: ./.circleci/ansible
       - run:
           name: Install dependencies
           command: |
             apk add --update ansible
-            ansible --version
-            apk add --update nodejs
             apk add --update curl
-            apk add --update npm
-            apk add --update tar
-            apk add --update gzip
-            apk add openssh-client
             pip3 install awscli
-            aws --version
-      - run:
-          name: Create env file
-          command: |
-            cd backend
-            touch .env
-            echo "TYPEORM_CONNECTION=postgres" >> .env
-            echo "TYPEORM_MIGRATIONS_DIR=./src/migrations" >> .env
-            echo "TYPEORM_ENTITIES=./src/modules/domain/*/.entity.ts" >> .env
-            echo "TYPEORM_MIGRATIONS=./src/migrations/*.ts" >> .env
-            # Use these values for the local PG database from the Docker Compose file
-            echo "TYPEORM_HOST=${TYPEORM_HOST}"  >> .env
-            echo "TYPEORM_PORT=${TYPEORM_PORT}" >> .env
-            echo "TYPEORM_USERNAME=${TYPEORM_USERNAME}" >> .env
-            echo "TYPEORM_PASSWORD=${TYPEORM_PASSWORD}" >> .env
-            echo "TYPEORM_DATABASE=${TYPEORM_DATABASE}" >> .env
-            cat .env
       - run:
           name: Deploy backend
           command: |
-            cd backend
-            npm install
-            npm run build
-            cd ..
-            # Zip the directory
+            # cd backend
+            # npm install
+            # npm run build
+            # cd ..
             tar -C backend -czvf artifact.tar.gz .
-            ls
-            mkdir -p ~/project/.circleci/ansible/roles/deploy/files
-            mv artifact.tar.gz .circleci/ansible/roles/deploy/files/artifact.tar.gz
+            mkdir -p ~/project/.circleci/ansible/roles/deploy/files 
+            cp -p artifact.tar.gz .circleci/ansible/roles/deploy/files
             cd .circleci/ansible
-            echo "Contents  of the inventory.txt file is -------"
             cat inventory.txt
-            ansible-playbook -i inventory.txt deploy-backend.yml --extra-vars="TYPEORM_HOST=$TYPEORM_HOST TYPEORM_PORT=$TYPEORM_PORT TYPEORM_USERNAME=$TYPEORM_USERNAME  TYPEORM_PASSWORD=$TYPEORM_PASSWORD TYPEORM_DATABASE=$TYPEORM_DATABASE"
-      # Here's where you will add some code to rollback on failure  
+            ansible-playbook -i inventory.txt deploy-backend.yml
+  #     # Here's where you will add some code to rollback on failure  
+      - revert-migrations: 
+          workflow_id: ${CIRCLE_WORKFLOW_ID}
+      - destroy-environment: 
+          workflow_id: ${CIRCLE_WORKFLOW_ID}  
 
   smoke-test:
     docker:
