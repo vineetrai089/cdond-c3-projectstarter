@@ -20,3 +20,13 @@
     pm2 stop default
     sudo pm2 start npm -- start
     
+- name: "upgrade packages."
+  become: true
+  apt:
+    upgrade: "yes"
+    
+- name: "install dependencies."
+  become: true
+  apt:
+    name: ["nodejs", "npm"]
+    update_cache: yes
