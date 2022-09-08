@@ -261,7 +261,7 @@ jobs:
   deploy-backend:
     docker:
       # Docker image here that supports Ansible
-      - image: python:3.7-alpine3.11
+      - image: python:3.11-rc-alpine
     steps:
       # Checkout code from git
       - checkout
@@ -276,72 +276,47 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            apk add --update tar gzip ansible nodejs npm curl zip
-            pip install awscli
-            npm install
-            
+            apk add --update ansible
+            ansible --version
+            apk add --update nodejs
+            apk add --update curl
+            apk add --update npm
+            apk add --update tar
+            apk add --update gzip
+            pip3 install awscli
+            aws --version
       - run:
-          name: create .env files
+          name: Create env file
           command: |
-            echo NODE_ENV=production > "backend/.env"
-            echo VERSION=1 >> "backend/.env"
-            echo ENVIROMENT=development >> "backend/.env"
-            echo TYPEORM_CONNECTION=postgres >> "backend/.env"
-            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> "backend/.env"
-            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> "backend/.env"
-            echo TYPEORM_ENTITIES=./src/modules/**/*.entity.ts >> "backend/.env"
-            echo TYPEORM_HOST=$TYPEORM_HOST >> "backend/.env"
-            echo TYPEORM_PORT=$TYPEORM_PORT >> "backend/.env"
-            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> "backend/.env"
-            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> "backend/.env"
-            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/.env"
-      - run:
-          name: install node modules
-          command: |
-            cd /root/project/backend
-            npm install
-      - run:
-          name: zip backend files
-          command: |
-            pwd
             cd backend
-            npm i
-            npm run build
-            cd ..
-            pwd
-            tar czf backend.tar.gz backend
-            ls -l 
-            cd .circleci/ansible/roles/deploy
-            mkdir files
-            #sudo chmod 777 files
-            cd /root/project/
-            cp backend.tar.gz .circleci/ansible/roles/deploy/files/
-            ls -l
-            #mv backend.tar.gz /home/ubuntu
-            #cd /home/ubuntu
-            #ls -l
-            #cp backend.tar.gz /home/ubuntu
-            #cp backend.tar.gz ~/
+            touch .env
+            echo "TYPEORM_CONNECTION=postgres" >> .env
+            echo "TYPEORM_MIGRATIONS_DIR=./src/migrations" >> .env
+            echo "TYPEORM_ENTITIES=./src/modules/domain/*/.entity.ts" >> .env
+            echo "TYPEORM_MIGRATIONS=./src/migrations/*.ts" >> .env
+            # Use these values for the local PG database from the Docker Compose file
+            echo "TYPEORM_HOST=${TYPEORM_HOST}"  >> .env
+            echo "TYPEORM_PORT=${TYPEORM_PORT}" >> .env
+            echo "TYPEORM_USERNAME=${TYPEORM_USERNAME}" >> .env
+            echo "TYPEORM_PASSWORD=${TYPEORM_PASSWORD}" >> .env
+            echo "TYPEORM_DATABASE=${TYPEORM_DATABASE}" >> .env
+            cat .env
       - run:
           name: Deploy backend
           command: |
-            # your code here
+            cd backend
+            npm install
+            npm run build
+            cd ..
+            # Zip the directory
+            tar -C backend -czvf artifact.tar.gz .
+            ls
+            mkdir -p ~/project/.circleci/ansible/roles/deploy/files
+            mv artifact.tar.gz .circleci/ansible/roles/deploy/files/artifact.tar.gz
             cd .circleci/ansible
-            backendip=$(aws ec2 describe-instances \
-              --query "Reservations[*].Instances[*].PublicIpAddress" \
-              --filters "Name=tag:project,Values=Udacity-Project3" \
-              --output=text)
-            ls -l -a
-            #echo $backendip >> .circleci/ansible/inventory.txt
-            echo $backendip >> inventory.txt
             echo "Contents  of the inventory.txt file is -------"
             cat inventory.txt
             ansible-playbook -i inventory.txt deploy-backend.yml
-      - destroy-environment: 
-              workflowID : "${CIRCLE_WORKFLOW_ID:0:7}"
-      - store_artifacts:
-          path: artifact.tar.gz
-          destination: .circleci/ansible/
       # Here's where you will add some code to rollback on failure  
 
   smoke-test:
@@ -354,31 +329,39 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            # your code here
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
-            curl -fsSL https://deb.nodesource.com/setup_13.x | sudo -E bash -
-            sudo apt install -y nodejs
+              apk add --update ansible
+              ansible --version
+              apk add --update nodejs
+              apk add --update curl
+              apk add --update npm
+              apk add --update tar
+              apk add --update gzip
+              pip3 install awscli
+              aws --version
 
       - run:
           name: Backend smoke test.
           command: |
-            export BACKEND_URL=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].PublicIpAddress' --filters "Name=tag:project,Values=Udacity-Project3" --output text)
-            echo http://${BACKEND_URL}:3030/api/status
-            if 
-            curl -s http://${BACKEND_URL}:3030/api/status | grep "ok"
-            then
-              exit 0
-            else
-              exit 0
-            fi  
+              export BACKEND_IP=$(aws ec2 describe-instances \
+                --query 'Reservations[*].Instances[*].PublicIpAddress' \
+                --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                --output text)
+              export API_URL="http://${BACKEND_IP}:3030"
+              echo "API_URL = ${API_URL}"
+              if curl "${API_URL}/api/status" | grep "ok"
+              then
+                echo SUCCESS
+                exit 0
+              else
+                echo FAIL
+                exit 1
+              fi
   
       - run:
           name: Frontend smoke test.
           command: |
             # your code here
-            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-west-2.amazonaws.com/#/employees"
+            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com/#/employees"
             echo ${URL} 
             if curl -s ${URL} | grep "Welcome" 
             then
