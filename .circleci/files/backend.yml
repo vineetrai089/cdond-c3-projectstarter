@@ -35,7 +35,7 @@ Resources:
         - Ref: InstanceSecurityGroup
       KeyName: Prometheus # If you use another key pair name, you should change this value to match.
       # Ubuntu 18 or higher works fine
-      ImageId: ami-052efd3df9dad4825
+      ImageId: ami-0ddf424f81ddb0720
       Tags:
         - Key: Name
           Value: !Sub backend-${ID}
