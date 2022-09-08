@@ -131,68 +131,68 @@ jobs:
       - image: amazon/aws-cli
     steps:
       - checkout
-      - run: yum -y install tar gzip jq npm
       - run:
           name: Ensure back-end infrastructure exists
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
-              --tags project=Udacity-Project3 \
-              --stack-name pudapeople-backend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --tags project=udapeople \
+              --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
-              #exit 1
       - run:
           name: Ensure front-end infrastructure exist
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/frontend.yml \
-              --tags project=Udacity-Project3 \
-              --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"
-              #exit 1
+              --tags project=udapeople \
+              --stack-name "udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
       - run:
           name: Add back-end ip to ansible inventory
           command: |
-            echo "[web]" > .circleci/ansible/inventory.txt
-            INSTSNCE_IP=$(aws ec2 describe-instances \
-            --query "Reservations[*].Instances[*].PublicIpAdress" \
-            --filters Name=tag:project,Values=Udacity-Project3 \
-            --output text)
-
-            echo ${INSTSNCE_IP} >> ./.circleci/ansible/inventory.txt
-            echo INSTSNCE_IP ${INSTSNCE_IP}
-            cat ./.circleci/ansible/inventory.txt
-
-            #exit 1
+            aws ec2 describe-instances \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --output text >> .circleci/ansible/inventory.txt
+            ip=$(aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --output text) 
+            echo ${ip}
+            curl -H "Content-Type: text/plain" \
+               -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" \
+               --request PUT \
+               --data ${ip} https://api.memstash.io/values/ip
+      - run: 
+          name: Install tar, gzip
+          command: |
+            yum -y install tar gzip 
+            cat .circleci/ansible/inventory.txt
       - persist_to_workspace:
           root: ~/
           paths:
             - project/.circleci/ansible/inventory.txt
+      - destroy-environment:
+          WorkflowID: "${CIRCLE_WORKFLOW_ID:0:7}"
       # Here's where you will add some code to rollback on failure 
 
-  configure-infrastructure:
-    docker:
-      - image: python:3.7-alpine3.12
-    steps:
-      - checkout
-      - add_ssh_keys:
-          fingerprints: ["29:89:13:9b:f7:e9:4b:6f:65:72:a3:e1:9e:0a:4c:52"]
-      - attach_workspace:
-          at: ./.circleci/ansible
-      - run:
-         cat ~/project/.circleci/ansible/inventory.txt
+  - attach_workspace:
+          at: ~/
       - run:
           name: Install dependencies
+          working_directory: ./.circleci/ansible
           command: |
-            # Your code here
-            apk add --update ansible 
+            apk add --update ansible
+            ansible --version
+            apk add openssh-client
       - run:
           name: Configure server
+          working_directory: ./.circleci/ansible
           command: |
-            # Your code here
-            cd .circleci/ansible
-            cat ~/project/.circleci/ansible/inventory.txt 
-            ansible-playbook -i inventory.txt configure-server.yml
+            pwd &&  
+            ls -la
+            cat inventory.txt
+            ansible-playbook -i inventory.txt configure-server.yml   --extra-vars="TYPEORM_HOST=$TYPEORM_HOST TYPEORM_PORT=$TYPEORM_PORT TYPEORM_USERNAME=$TYPEORM_USERNAME  TYPEORM_PASSWORD=$TYPEORM_PASSWORD TYPEORM_DATABASE=$TYPEORM_DATABASE"
+          environment:
+            ANSIBLE_HOST_KEY_CHECKING: false 
         # Here's where you will add some code to rollback on failure 
   run-migrations:
     docker:
