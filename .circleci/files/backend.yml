@@ -40,7 +40,7 @@ Resources:
       InstanceType: t2.micro
       SecurityGroups:
         - Ref: InstanceSecurityGroup
-      KeyName: Prometheus # If you use another key pair name, you should change this value to match.
+      KeyName: project3 # If you use another key pair name, you should change this value to match.
       # Ubuntu 18 or higher works fine
       ImageId: ami-068663a3c619dd892
       Tags:
